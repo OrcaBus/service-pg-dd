@@ -1,6 +1,6 @@
 import { App, Aspects } from 'aws-cdk-lib';
 import { Annotations, Match } from 'aws-cdk-lib/assertions';
-import { AwsSolutionsChecks } from 'cdk-nag';
+import { AwsSolutionsChecks, NagSuppressions } from 'cdk-nag';
 import { PgDDStack } from '../infrastructure/stage/pg-dd-stack';
 import { getPgDDConfig } from '../infrastructure/stage/config';
 import { synthesisMessageToString } from '@orcabus/platform-cdk-constructs/utils';
@@ -31,4 +31,10 @@ describe('cdk-nag-stateless-toolchain-stack', () => {
       .map(synthesisMessageToString);
     expect(warnings).toHaveLength(0);
   });
+
+  NagSuppressions.addStackSuppressions(
+    stack,
+    [{ id: 'AwsSolutions-IAM4', reason: 'allow to use AWS managed policy' }],
+    true
+  );
 });
