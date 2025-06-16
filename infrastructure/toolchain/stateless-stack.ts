@@ -1,24 +1,46 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { DeploymentStackPipeline } from '@orcabus/platform-cdk-constructs/deployment-stack-pipeline';
-import { getStackProps } from '../stage/config';
+import { Pipeline } from 'aws-cdk-lib/aws-codepipeline';
+import { PgDDStack } from '../stage/pg-dd-stack';
+import { getPgDDConfig } from '../stage/config';
 
 export class StatelessStack extends cdk.Stack {
+  readonly pipeline: Pipeline;
+
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    new DeploymentStackPipeline(this, 'DeploymentPipeline', {
-      githubBranch: 'main',
-      githubRepo: /** TODO: Replace with string. Example: */ 'service-microservice-manager',
-      stack: /** TODO: Replace with Stack (e.g. TheStatelessStack) */ undefined as unknown,
-      stackName: /** TODO: Replace with string. Example: */ 'StatelessMicroserviceManager',
+    const deployment = new DeploymentStackPipeline(this, 'DeploymentPipeline', {
+      githubBranch: 'init',
+      githubRepo: 'service-pg-dd',
+      stack: PgDDStack,
+      stackName: 'PgDDStack',
       stackConfig: {
-        beta: getStackProps('BETA'),
-        gamma: getStackProps('GAMMA'),
-        prod: getStackProps('PROD'),
+        beta: {
+          ...getPgDDConfig('BETA'),
+        },
+        gamma: {
+          ...getPgDDConfig('GAMMA'),
+        },
+        prod: {
+          ...getPgDDConfig('PROD'),
+        },
       },
-      pipelineName: /** TODO: Replace with string. Example: */ 'OrcaBus-StatelessMicroservice',
+      pipelineName: 'OrcaBus-StatelessPgDD',
       cdkSynthCmd: ['pnpm install --frozen-lockfile --ignore-scripts', 'pnpm cdk-stateless synth'],
+      synthBuildSpec: {
+        phases: {
+          install: {
+            'runtime-versions': {
+              nodejs: '22.x',
+              python: '3.13',
+            },
+          },
+        },
+      },
     });
+
+    this.pipeline = deployment.pipeline;
   }
 }
