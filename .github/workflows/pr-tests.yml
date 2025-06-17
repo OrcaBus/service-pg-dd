@@ -20,18 +20,10 @@ on:
 
 permissions: read-all
 
-# Actions Used (please keep this documented here as added)
-#  https://github.com/marketplace/actions/checkout
-#  https://github.com/marketplace/actions/setup-python
-#  https://github.com/marketplace/actions/trufflehog-oss
-#  https://github.com/marketplace/actions/checkout
-#  https://github.com/marketplace/actions/cache
-#  https://github.com/actions-rust-lang/setup-rust-toolchain
-
 jobs:
   pre-commit-lint-security:
-    runs-on: ubuntu-latest
-    if: ${{ !github.event.pull_request.draft && github.repository != 'OrcaBus/template-service-base' }}
+    runs-on: ubuntu-24.04-arm
+    if: ${{ !github.event.pull_request.draft }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -39,28 +31,23 @@ jobs:
           fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version: '22.x'
           cache: 'pnpm'
+      - name: Install pre-commit
+        run: |
+          pip3 install pre-commit
 
       - run: corepack enable
 
-      - name: Print toolchain versions
-        run: |
-          node -v
-          python3 -V
-          pip3 -V
-          make --version
-
-      # TODO see whether we can leverage https://github.com/pre-commit/action
-      - name: Install system-wide tools dependencies
-        run: |
-          pip3 install pre-commit detect-secrets black ggshield
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.13
+      - uses: abatilo/actions-poetry@v4
 
       - name: TruffleHog OSS
-        uses: trufflesecurity/trufflehog@v3.34.0
+        uses: trufflesecurity/trufflehog@v3.88.29
         with:
           path: ./
           base: ${{ github.event.repository.default_branch }}
@@ -69,52 +56,50 @@ jobs:
 
       - name: Install dependencies
         run: |
-          make install
-
+          make install-all
       - name: Lint and code formatting
         run: |
           make check-all
 
   test-iac:
-    runs-on: ubuntu-22.04-arm
-    # Template service base is broken with
-    if: ${{ !github.event.pull_request.draft && github.repository != 'OrcaBus/template-service-base' }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-          cache: 'pnpm'
-
-      - run: corepack enable
-
-      - run: pnpm install --frozen-lockfile --ignore-scripts
-
-      - run: pnpm test
-
-  test-app:
-    runs-on: ubuntu-22.04-arm
-    # Do not run this step on the template service base repository as a Makefile is not yet defined.
-    if: ${{ !github.event.pull_request.draft && github.repository != 'OrcaBus/template-service-base' }}
+    runs-on: ubuntu-24.04-arm
+    if: ${{ !github.event.pull_request.draft }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: 3.13
+      - uses: abatilo/actions-poetry@v4
 
-      - name: Print toolchain versions
-        run: |
-          node -v
-          python -V
-          pip3 -V
-          make --version
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'pnpm'
 
-      - name: Install
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: make test
+
+  test-app:
+    runs-on: ubuntu-24.04-arm
+    if: ${{ !github.event.pull_request.draft }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.13
+      - uses: abatilo/actions-poetry@v4
+
+      - name: Install dependencies
         working-directory: ./app
         run: |
           make install

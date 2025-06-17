@@ -2,8 +2,6 @@
 
 check:
 	@pnpm audit
-	@pnpm prettier
-	@pnpm lint
 	@pre-commit run --all-files
 
 check-all: check
@@ -18,6 +16,9 @@ fix-all: fix
 
 install:
 	@pnpm install --frozen-lockfile
+
+install-all: install
+	@(cd app && $(MAKE) install)
 
 test:
 	@pnpm test

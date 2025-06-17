@@ -1,55 +1,54 @@
-import { App, Aspects, Stack } from 'aws-cdk-lib';
+import { App, Aspects } from 'aws-cdk-lib';
 import { Annotations, Match } from 'aws-cdk-lib/assertions';
-import { SynthesisMessage } from 'aws-cdk-lib/cx-api';
 import { AwsSolutionsChecks, NagSuppressions } from 'cdk-nag';
-import { DeployStack } from '../infrastructure/stage/deployment-stack';
-
-function synthesisMessageToString(sm: SynthesisMessage): string {
-  return `${sm.entry.data} [${sm.id}]`;
-}
+import { PgDDStack } from '../infrastructure/stage/pg-dd-stack';
+import { getPgDDConfig } from '../infrastructure/stage/config';
+import { synthesisMessageToString } from '@orcabus/platform-cdk-constructs/utils';
 
 describe('cdk-nag-stateless-toolchain-stack', () => {
-  const app = new App({});
+  const app = new App();
 
-  // You should configure all stack (sateless, stateful) to be tested
-  const deployStack = new DeployStack(app, 'DeployStack', {
-    // Pick the prod environment to test as it is the most strict
-    // ...getStackProps('PROD'),
+  const stack = new PgDDStack(app, 'PgDDStack', {
+    ...getPgDDConfig('PROD'),
+    env: {
+      account: '123456789',
+      region: 'ap-southeast-2',
+    },
   });
 
-  Aspects.of(deployStack).add(new AwsSolutionsChecks());
-  applyNagSuppression(deployStack);
+  Aspects.of(stack).add(new AwsSolutionsChecks());
 
   test(`cdk-nag AwsSolutions Pack errors`, () => {
-    const errors = Annotations.fromStack(deployStack)
+    const errors = Annotations.fromStack(stack)
       .findError('*', Match.stringLikeRegexp('AwsSolutions-.*'))
       .map(synthesisMessageToString);
     expect(errors).toHaveLength(0);
   });
 
   test(`cdk-nag AwsSolutions Pack warnings`, () => {
-    const warnings = Annotations.fromStack(deployStack)
+    const warnings = Annotations.fromStack(stack)
       .findWarning('*', Match.stringLikeRegexp('AwsSolutions-.*'))
       .map(synthesisMessageToString);
     expect(warnings).toHaveLength(0);
   });
-});
 
-/**
- * apply nag suppression
- * @param stack
- */
-function applyNagSuppression(stack: Stack) {
-  // These are example suppressions for this stack and should be removed and replaced with the
-  // service-specific suppressions of your app.
   NagSuppressions.addStackSuppressions(
     stack,
-    [{ id: 'AwsSolutions-S10', reason: 'not require requests to use SSL' }],
+    [{ id: 'AwsSolutions-IAM4', reason: 'allow to use AWS managed policy' }],
     true
   );
-  NagSuppressions.addStackSuppressions(
+  NagSuppressions.addResourceSuppressions(
     stack,
-    [{ id: 'AwsSolutions-S1', reason: 'this is an example bucket' }],
+    [
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: "'*' is required to access objects and secrets",
+        appliesTo: [
+          'Resource::arn:aws:s3:::orcabus-test-data-472057503814-ap-southeast-2/*',
+          'Resource::arn:aws:secretsmanager:ap-southeast-2:472057503814:secret:orcabus/master-rds-*',
+        ],
+      },
+    ],
     true
   );
-}
+});
