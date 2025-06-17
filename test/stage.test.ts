@@ -37,4 +37,18 @@ describe('cdk-nag-stateless-toolchain-stack', () => {
     [{ id: 'AwsSolutions-IAM4', reason: 'allow to use AWS managed policy' }],
     true
   );
+  NagSuppressions.addResourceSuppressions(
+    stack,
+    [
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: "'*' is required to access objects and secrets",
+        appliesTo: [
+          'Resource::arn:aws:s3:::orcabus-test-data-472057503814-ap-southeast-2/*',
+          'Resource::arn:aws:secretsmanager:ap-southeast-2:472057503814:secret:orcabus/master-rds-*',
+        ],
+      },
+    ],
+    true
+  );
 });
