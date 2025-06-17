@@ -19,3 +19,5 @@ cli: install
 
 clean:
 	rm -rf data && rm -rf .ruff_cache
+
+test:
