@@ -3,12 +3,13 @@ import {
   REGION,
   StageName,
 } from '@orcabus/platform-cdk-constructs/shared-config/accounts';
-import { PgDDConfig } from './pg-dd-stack';
+import { PgDDConfig } from './pg-dd-stateless-stack';
 import {
   SHARED_SECURITY_GROUP_NAME,
   VPC_LOOKUP_PROPS,
 } from '@orcabus/platform-cdk-constructs/shared-config/networking';
 import { RDS_MASTER_SECRET_NAME } from '@orcabus/platform-cdk-constructs/shared-config/database';
+import { PgDDStatefulConfig } from './pg-dd-stateful-stack';
 
 export const getPgDDConfig = (stage: StageName): PgDDConfig => {
   return {
@@ -17,5 +18,11 @@ export const getPgDDConfig = (stage: StageName): PgDDConfig => {
     secretArn: `arn:aws:secretsmanager:${REGION}:${ACCOUNT_ID_ALIAS[stage]}:secret:${RDS_MASTER_SECRET_NAME}`, // pragma: allowlist secret
     lambdaSecurityGroupName: SHARED_SECURITY_GROUP_NAME,
     vpcProps: VPC_LOOKUP_PROPS,
+  };
+};
+
+export const getPgDDStatefulConfig = (stage: StageName): PgDDStatefulConfig => {
+  return {
+    bucket: `orcabus-pg-dd-${ACCOUNT_ID_ALIAS[stage]}-${REGION}`,
   };
 };

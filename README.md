@@ -77,7 +77,7 @@ The project is organized into the following directories:
     - **`./infrastructure/toolchain`**: Includes stacks for the stateless and stateful resources deployed in the toolchain account. These stacks primarily set up the CodePipeline for cross-environment deployments.
     - **`./infrastructure/stage`**: Defines the stage stacks for different environments:
         - **`./infrastructure/stage/config.ts`**: Contains environment-specific configuration files (e.g., `beta`, `gamma`, `prod`).
-        - **`./infrastructure/stage/pg-dd-stack.ts`**: The CDK stack entry point for provisioning resources required by the application in `./app`.
+        - **`./infrastructure/stage/pg-dd-stateless-stack.ts`**: The CDK stack entry point for provisioning resources required by the application in `./app`.
 
 - **`.github/workflows/pr-tests.yml`**: Configures GitHub Actions to run tests for `make check-all` (linting and code style), tests defined in `./test`, and `make test` for the `./app` directory.
 
