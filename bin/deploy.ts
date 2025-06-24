@@ -3,6 +3,7 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { StatelessStack } from '../infrastructure/toolchain/stateless-stack';
 import { TOOLCHAIN_ENVIRONMENT } from '@orcabus/platform-cdk-constructs/deployment-stack-pipeline';
+import { StatefulStack } from '../infrastructure/toolchain/stateful-stack';
 
 const app = new cdk.App();
 
@@ -13,6 +14,10 @@ if (!deployMode) {
 
 if (deployMode === 'stateless') {
   new StatelessStack(app, 'OrcaBusStatelessPgDDStack', {
+    env: TOOLCHAIN_ENVIRONMENT,
+  });
+} else if (deployMode === 'stateful') {
+  new StatefulStack(app, 'OrcaBusStatefulPgDDStack', {
     env: TOOLCHAIN_ENVIRONMENT,
   });
 } else {

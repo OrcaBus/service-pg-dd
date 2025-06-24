@@ -2,10 +2,10 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { DeploymentStackPipeline } from '@orcabus/platform-cdk-constructs/deployment-stack-pipeline';
 import { Pipeline } from 'aws-cdk-lib/aws-codepipeline';
-import { PgDDStack } from '../stage/pg-dd-stateless-stack';
-import { getPgDDConfig } from '../stage/config';
+import { getPgDDStatefulConfig } from '../stage/config';
+import { PgDDStatefulStack } from '../stage/pg-dd-stateful-stack';
 
-export class StatelessStack extends cdk.Stack {
+export class StatefulStack extends cdk.Stack {
   readonly pipeline: Pipeline;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -14,31 +14,21 @@ export class StatelessStack extends cdk.Stack {
     const deployment = new DeploymentStackPipeline(this, 'DeploymentPipeline', {
       githubBranch: 'main',
       githubRepo: 'service-pg-dd',
-      stack: PgDDStack,
-      stackName: 'PgDDStack',
+      stack: PgDDStatefulStack,
+      stackName: 'PgDDStatefulStack',
       stackConfig: {
         beta: {
-          ...getPgDDConfig('BETA'),
+          ...getPgDDStatefulConfig('BETA'),
         },
         gamma: {
-          ...getPgDDConfig('GAMMA'),
+          ...getPgDDStatefulConfig('GAMMA'),
         },
         prod: {
-          ...getPgDDConfig('PROD'),
+          ...getPgDDStatefulConfig('PROD'),
         },
       },
-      pipelineName: 'OrcaBus-StatelessPgDD',
-      cdkSynthCmd: ['pnpm install --frozen-lockfile --ignore-scripts', 'pnpm cdk-stateless synth'],
-      synthBuildSpec: {
-        phases: {
-          install: {
-            'runtime-versions': {
-              nodejs: '22.x',
-              python: '3.13',
-            },
-          },
-        },
-      },
+      pipelineName: 'OrcaBus-StatefulPgDD',
+      cdkSynthCmd: ['pnpm install --frozen-lockfile --ignore-scripts', 'pnpm cdk-stateful synth'],
     });
 
     this.pipeline = deployment.pipeline;
