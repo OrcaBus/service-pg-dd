@@ -1,15 +1,17 @@
 import json
 import logging
 import os
-import tempfile
-import uuid
+import sys
 from types import SimpleNamespace
 
+import boto3
 from libumccr.aws import libsm
+from mypy_boto3_stepfunctions import SFNClient
 
-from pg_dd.pg_dd import PgDDS3, PgDDLocal
+from pg_dd.cli import cli
 
-logger = logging.getLogger(__name__)
+logging.basicConfig()
+logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 try:
@@ -23,8 +25,44 @@ except Exception as e:
     raise e
 
 
-def handler(_event, _context):
-    out_dir = os.path.join(tempfile.gettempdir(), str(uuid.uuid4()))
+def send_output():
+    """
+    Send successful task response with the output.
+    """
+    task_token = os.getenv("PG_DD_TASK_TOKEN")
+    if task_token is not None:
+        client: SFNClient = boto3.client("stepfunctions")
+        client.send_task_success(
+            taskToken=task_token,
+            output=json.dumps(
+                {
+                    "bucket": os.getenv("PG_DD_BUCKET"),
+                    "prefix": os.getenv("PG_DD_PREFIX"),
+                }
+            ),
+        )
 
-    PgDDLocal(logger=logger, out_dir=out_dir).write_to_dir()
-    PgDDS3(logger=logger, out_dir=out_dir).write_to_bucket()
+
+def send_failure(error: str):
+    """
+    Send a failed task response.
+    """
+    task_token = os.getenv("PG_DD_TASK_TOKEN")
+    if task_token is not None:
+        client: SFNClient = boto3.client("stepfunctions")
+        client.send_task_failure(taskToken=task_token, error=error)
+
+
+def handler():
+    try:
+        cli(standalone_mode=False)
+        send_output()
+        sys.exit(0)
+    except Exception as e:
+        send_failure(str(e))
+        logger.error(str(e))
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    handler()

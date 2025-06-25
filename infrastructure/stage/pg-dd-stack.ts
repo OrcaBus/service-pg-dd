@@ -1,4 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
+import { Duration, StackProps } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import {
   ISecurityGroup,
@@ -8,13 +9,28 @@ import {
   Vpc,
   VpcLookupOptions,
 } from 'aws-cdk-lib/aws-ec2';
-import { ManagedPolicy, PolicyStatement, Role } from 'aws-cdk-lib/aws-iam';
-import { Duration, StackProps } from 'aws-cdk-lib';
-import { NamedLambdaRole } from '@orcabus/platform-cdk-constructs/named-lambda-role';
+import { PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import * as path from 'node:path';
-import { PythonFunction } from '@aws-cdk/aws-lambda-python-alpha';
-import { Architecture, Runtime } from 'aws-cdk-lib/aws-lambda';
-import { readFileSync } from 'fs';
+import {
+  AssetImage,
+  Cluster,
+  ContainerInsights,
+  CpuArchitecture,
+  FargateTaskDefinition,
+  LogDriver,
+} from 'aws-cdk-lib/aws-ecs';
+import { RetentionDays } from 'aws-cdk-lib/aws-logs';
+import { Platform } from 'aws-cdk-lib/aws-ecr-assets';
+import {
+  ChainDefinitionBody,
+  IntegrationPattern,
+  JsonPath,
+  Pass,
+  StateMachine,
+  Succeed,
+  Timeout,
+} from 'aws-cdk-lib/aws-stepfunctions';
+import { EcsFargateLaunchTarget, EcsRunTask } from 'aws-cdk-lib/aws-stepfunctions-tasks';
 
 /**
  * Props for the PgDD stack.
@@ -40,6 +56,10 @@ export interface PgDDConfig {
    * Existing security group name to be attached on lambda.
    */
   lambdaSecurityGroupName: string;
+  /**
+   * How long to retain logs from the fargate task.
+   */
+  logRetention?: RetentionDays;
 }
 
 /**
@@ -51,6 +71,7 @@ export class PgDDStack extends cdk.Stack {
   private readonly vpc: IVpc;
   private readonly securityGroup: ISecurityGroup;
   private readonly role: Role;
+  private readonly cluster: Cluster;
 
   constructor(scope: Construct, id: string, props: PgDDProps) {
     super(scope, id, props);
@@ -63,9 +84,16 @@ export class PgDDStack extends cdk.Stack {
       this.vpc
     );
 
-    this.role = new NamedLambdaRole(this, 'Role');
-    this.role.addManagedPolicy(
-      ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole')
+    this.role = new Role(this, 'Role', {
+      assumedBy: new ServicePrincipal('ecs-tasks.amazonaws.com'),
+      description: 'PgDD fargate execution role',
+      maxSessionDuration: Duration.hours(12),
+    });
+    this.role.addToPolicy(
+      new PolicyStatement({
+        resources: ['*'],
+        actions: ['states:SendTaskSuccess', 'states:SendTaskFailure', 'states:SendTaskHeartbeat'],
+      })
     );
     this.role.addToPolicy(
       new PolicyStatement({
@@ -80,30 +108,34 @@ export class PgDDStack extends cdk.Stack {
       })
     );
 
-    const securityGroup = new SecurityGroup(this, 'SecurityGroup', {
+    this.cluster = new Cluster(this, 'FargateCluster', {
       vpc: this.vpc,
-      allowAllOutbound: true,
-      description: 'Security group that allows the PgDD Lambda function to egress out.',
+      enableFargateCapacityProviders: true,
+      containerInsightsV2: ContainerInsights.ENHANCED,
     });
 
     const entry = path.join(__dirname, '..', '..', 'app');
-    new PythonFunction(this, 'Function', {
-      entry,
-      functionName: 'orcabus-pg-dd',
-      index: 'pg_dd/handler.py',
-      runtime: Runtime.PYTHON_3_13,
-      architecture: Architecture.ARM_64,
-      timeout: Duration.minutes(5),
-      memorySize: 1024,
-      vpc: this.vpc,
-      vpcSubnets: {
-        subnetType: SubnetType.PRIVATE_WITH_EGRESS,
+    const name = 'orcabus-pg-dd';
+    const taskDefinition = new FargateTaskDefinition(this, 'TaskDefinition', {
+      runtimePlatform: {
+        cpuArchitecture: CpuArchitecture.ARM64,
       },
-      bundling: {
-        assetExcludes: [...readFileSync(path.join(entry, '.dockerignore'), 'utf-8').split('\n')],
-      },
-      role: this.role,
-      securityGroups: [securityGroup, this.securityGroup],
+      cpu: 256,
+      ephemeralStorageGiB: 100,
+      memoryLimitMiB: 1024,
+      taskRole: this.role,
+      family: name,
+    });
+    const container = taskDefinition.addContainer('Container', {
+      stopTimeout: Duration.seconds(120),
+      image: new AssetImage(entry, {
+        platform: Platform.LINUX_ARM64,
+      }),
+      readonlyRootFilesystem: true,
+      logging: LogDriver.awsLogs({
+        streamPrefix: 'pg-dd',
+        logRetention: props.logRetention,
+      }),
       environment: {
         PG_DD_SECRET: props.secretArn,
         PG_DD_BUCKET: props.bucket,
@@ -116,6 +148,42 @@ export class PgDDStack extends cdk.Stack {
         PG_DD_DATABASE_FILEMANAGER_SQL_LOAD: 's3_object',
         ...(props.prefix && { PG_DD_PREFIX: props.prefix }),
       },
+    });
+
+    const securityGroupEgress = new SecurityGroup(this, 'SecurityGroup', {
+      vpc: this.vpc,
+      allowAllOutbound: true,
+      description: 'Security group that allows the PgDD task to egress out.',
+    });
+    const startState = new Pass(this, 'StartState');
+    const task = new EcsRunTask(this, 'RunPgDD', {
+      cluster: this.cluster,
+      taskTimeout: Timeout.duration(Duration.hours(12)),
+      integrationPattern: IntegrationPattern.WAIT_FOR_TASK_TOKEN,
+      taskDefinition: taskDefinition,
+      launchTarget: new EcsFargateLaunchTarget(),
+      securityGroups: [securityGroupEgress, this.securityGroup],
+      subnets: {
+        subnetType: SubnetType.PRIVATE_WITH_EGRESS,
+      },
+      containerOverrides: [
+        {
+          containerDefinition: container,
+          command: JsonPath.listAt('$.commands'),
+          environment: [
+            {
+              name: 'PG_DD_TASK_TOKEN',
+              value: JsonPath.stringAt('$$.Task.Token'),
+            },
+          ],
+        },
+      ],
+    });
+    const finish = new Succeed(this, 'SuccessState');
+
+    new StateMachine(this, 'StateMachine', {
+      stateMachineName: name,
+      definitionBody: ChainDefinitionBody.fromChainable(startState.next(task).next(finish)),
     });
   }
 }

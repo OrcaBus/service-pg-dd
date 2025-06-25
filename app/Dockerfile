@@ -1,6 +1,6 @@
 FROM public.ecr.aws/docker/library/python:3.13
 
-RUN pip3 install poetry
+RUN pip3 install poetry && apt update && apt -y install postgresql-client
 
 WORKDIR /app
 
