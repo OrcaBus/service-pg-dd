@@ -21,7 +21,7 @@ class PgDDMode(StrEnum):
     copy command with CSV format.
     """
 
-    PG_DUMP = ("pg-dump",)
+    PG_DUMP = "pg-dump"
     COPY_CSV = "copy-csv"
 
     @staticmethod
@@ -78,6 +78,26 @@ class PgDD:
 
                 with conn.cursor() as cur:
                     databases[entry["database"]] = self.copy_tables_to_csv(cur, tables)
+
+        return databases
+
+    def list_databases(self) -> List[str]:
+        """
+        List all databases.
+        """
+        databases = []
+
+        conn: psycopg.connection.Connection
+        with psycopg.connect(self.url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    select datname from pg_database
+                    where datistemplate = false;
+                    """
+                )
+                databases = [name[0] for name in cur.fetchall()]
+                self.logger.info(f"fetched databases: {databases}")
 
         return databases
 
@@ -213,19 +233,22 @@ class PgDDLocal(PgDD):
         self,
         out_dir=os.getenv("PG_DD_DIR"),
         logger: logging.Logger = logging.getLogger(__name__),
+        mode: PgDDMode = PgDDMode.from_env(),
     ):
         super().__init__(logger=logger)
         self.out = out_dir
+        os.makedirs(self.out, exist_ok=True)
+
         self.bucket = os.getenv("PG_DD_BUCKET")
         self.prefix = os.getenv("PG_DD_PREFIX")
-        self.mode = PgDDMode.from_env()
+        self.mode = PgDDMode(mode)
         self.s3: S3ServiceResource = boto3.resource("s3")
 
     def write_pg_dump(self, db: str = None):
         """
         Write using pg-dump mode.
         """
-        for database in self.read_databases() if db is None else [db]:
+        for database in self.list_databases() if db is None else [db]:
             subprocess.run(
                 [
                     "pg_dump",
@@ -233,7 +256,7 @@ class PgDDLocal(PgDD):
                     "-d",
                     f"{self.url}/{database}",
                     "-f",
-                    f"{database}.dump",
+                    f"{self.out}/{database}.dump",
                 ],
                 check=True,
                 stdout=subprocess.PIPE,
@@ -246,7 +269,6 @@ class PgDDLocal(PgDD):
         """
         for _, _, f, value in self.target_files(db):
             file = f"{self.out}/{f}"
-            os.makedirs(file.rsplit("/", 1)[0], exist_ok=True)
             self.logger.info(f"writing to file: {f}")
 
             with open(file, "wb") as file:
@@ -300,7 +322,7 @@ class PgDDLocal(PgDD):
         for root, _, databases in os.walk(self.out):
             for database in databases:
                 subprocess.run(
-                    ["pg_restore", "-d", f"{root}/{database}"],
+                    ["pg_restore", "-C", "-d", f"{self.url}", f"{root}/{database}"],
                     check=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,

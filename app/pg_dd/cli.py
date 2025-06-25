@@ -35,12 +35,16 @@ def download(exists_ok):
     default=False,
     help="Dump from the database first before uploading.",
 )
-def upload(database, dump_db):
+@click.option(
+    "--mode",
+    help="Specify the mode if dumping the database, either copy-csv or pg-dump.",
+)
+def upload(database, dump_db, mode):
     """
     Uploads local CSV dumps to S3.
     """
     if dump_db:
-        PgDDLocal(logger=logger).write_to_dir(database)
+        PgDDLocal(logger=logger, mode=mode).write_to_dir(database)
 
     PgDDS3(logger=logger).write_to_bucket(database)
 
@@ -49,11 +53,12 @@ def upload(database, dump_db):
 @click.option(
     "--database", help="Specify the database to dump, dumps all databases by default."
 )
-def dump(database):
+@click.option("--mode", help="Specify the mode, either copy-csv or pg-dump.")
+def dump(database, mode):
     """
     Dump from the local database to CSV files.
     """
-    PgDDLocal(logger=logger).write_to_dir(database)
+    PgDDLocal(logger=logger, mode=mode).write_to_dir(database)
 
 
 @cli.command()
@@ -67,14 +72,15 @@ def dump(database):
     default=True,
     help="Only load into tables that are empty and exist in the database.",
 )
-def load(download_exists_ok, only_empty):
+@click.option("--mode", help="Specify the mode, either copy-csv or pg-dump.")
+def load(download_exists_ok, only_empty, mode):
     """
     Load local CSV files into the database.
     """
     if download_exists_ok:
         PgDDS3(logger=logger).download_local(download_exists_ok)
 
-    PgDDLocal(logger=logger).load_to_database(only_empty)
+    PgDDLocal(logger=logger, mode=mode).load_to_database(only_empty)
 
 
 if __name__ == "__main__":
