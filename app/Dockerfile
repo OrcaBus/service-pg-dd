@@ -7,4 +7,4 @@ WORKDIR /app
 COPY . .
 RUN poetry install --no-interaction --no-root
 
-ENTRYPOINT ["poetry", "run", "cli"]
+ENTRYPOINT ["poetry", "run", "main"]

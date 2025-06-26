@@ -30,10 +30,10 @@ class PgDDMode(StrEnum):
         Load the mode from the environment.
         """
         mode = os.getenv("PG_DD_MODE")
-        if mode is None or mode == PgDDMode.COPY_CSV:
-            return PgDDMode.COPY_CSV
-        elif mode == PgDDMode.PG_DUMP:
+        if mode is None or mode == PgDDMode.PG_DUMP:
             return PgDDMode.PG_DUMP
+        elif mode == PgDDMode.COPY_CSV:
+            return PgDDMode.COPY_CSV
         else:
             raise RuntimeError(f"unknown mode: {mode}")
 

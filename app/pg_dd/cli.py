@@ -3,7 +3,6 @@ import click
 import json
 import logging
 import os
-import sys
 from types import SimpleNamespace
 
 import boto3
@@ -14,22 +13,13 @@ logging.basicConfig()
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-try:
-    secret_str = libsm.get_secret(os.getenv("PG_DD_SECRET"))
-    secret = json.loads(secret_str, object_hook=lambda d: SimpleNamespace(**d))
-    os.environ["PG_DD_URL"] = (
-        f"{secret.engine}://{secret.username}:{secret.password}@{secret.host}:{secret.port}"
-    )
-except Exception as e:
-    logger.error(f"retrieving database url from secrets manager: {e}")
-    raise e
-
 
 def send_output():
     """
     Send successful task response with the output.
     """
     task_token = os.getenv("PG_DD_TASK_TOKEN")
+    logger.debug("task_token: %s", task_token)
     if task_token is not None:
         client: SFNClient = boto3.client("stepfunctions")
         client.send_task_success(
@@ -48,6 +38,7 @@ def send_failure(error: str):
     Send a failed task response.
     """
     task_token = os.getenv("PG_DD_TASK_TOKEN")
+    logger.debug("task_token: %s", task_token)
     if task_token is not None:
         client: SFNClient = boto3.client("stepfunctions")
         client.send_task_failure(taskToken=task_token, error=error)
@@ -55,13 +46,18 @@ def send_failure(error: str):
 
 def main():
     try:
+        secret_str = libsm.get_secret(os.getenv("PG_DD_SECRET"))
+        secret = json.loads(secret_str, object_hook=lambda d: SimpleNamespace(**d))
+        os.environ["PG_DD_URL"] = (
+            f"{secret.engine}://{secret.username}:{secret.password}@{secret.host}:{secret.port}"
+        )
+
         cli(standalone_mode=False)
         send_output()
-        sys.exit(0)
     except Exception as e:
         send_failure(str(e))
         logger.error(str(e))
-        sys.exit(1)
+        raise e
 
 
 @click.group()

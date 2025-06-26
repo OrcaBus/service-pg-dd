@@ -26,3 +26,4 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 cli = "pg_dd.cli:cli"
+main = "pg_dd.cli:main"

@@ -18,6 +18,7 @@ import {
   CpuArchitecture,
   FargateTaskDefinition,
   LogDriver,
+  Scope,
 } from 'aws-cdk-lib/aws-ecs';
 import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { Platform } from 'aws-cdk-lib/aws-ecr-assets';
@@ -125,6 +126,15 @@ export class PgDDStack extends cdk.Stack {
       memoryLimitMiB: 1024,
       taskRole: this.role,
       family: name,
+      volumes: [
+        {
+          name: 'tmp',
+          dockerVolumeConfiguration: {
+            driver: 'local',
+            scope: Scope.TASK,
+          },
+        },
+      ],
     });
     const container = taskDefinition.addContainer('Container', {
       stopTimeout: Duration.seconds(120),
@@ -139,6 +149,7 @@ export class PgDDStack extends cdk.Stack {
       environment: {
         PG_DD_SECRET: props.secretArn,
         PG_DD_BUCKET: props.bucket,
+        PG_DD_DIR: 'tmp',
         PG_DD_DATABASE_METADATA_MANAGER: 'metadata_manager',
         PG_DD_DATABASE_SEQUENCE_RUN_MANAGER: 'sequence_run_manager',
         PG_DD_DATABASE_WORKFLOW_MANAGER: 'workflow_manager',
@@ -148,6 +159,11 @@ export class PgDDStack extends cdk.Stack {
         PG_DD_DATABASE_FILEMANAGER_SQL_LOAD: 's3_object',
         ...(props.prefix && { PG_DD_PREFIX: props.prefix }),
       },
+    });
+    container.addMountPoints({
+      sourceVolume: 'tmp',
+      containerPath: '/tmp',
+      readOnly: false,
     });
 
     const securityGroupEgress = new SecurityGroup(this, 'SecurityGroup', {
