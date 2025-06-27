@@ -9,9 +9,8 @@ import boto3
 from libumccr.aws import libsm
 from mypy_boto3_stepfunctions import SFNClient
 
-logging.basicConfig()
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
 
 
 def send_output():
@@ -55,8 +54,8 @@ def main():
         cli(standalone_mode=False)
         send_output()
     except Exception as e:
-        send_failure(str(e))
         logger.error(str(e))
+        send_failure(str(e))
         raise e
 
 

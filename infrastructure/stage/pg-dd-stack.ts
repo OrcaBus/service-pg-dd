@@ -18,7 +18,6 @@ import {
   CpuArchitecture,
   FargateTaskDefinition,
   LogDriver,
-  Scope,
 } from 'aws-cdk-lib/aws-ecs';
 import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { Platform } from 'aws-cdk-lib/aws-ecr-assets';
@@ -129,10 +128,6 @@ export class PgDDStack extends cdk.Stack {
       volumes: [
         {
           name: 'tmp',
-          dockerVolumeConfiguration: {
-            driver: 'local',
-            scope: Scope.TASK,
-          },
         },
       ],
     });
@@ -149,7 +144,7 @@ export class PgDDStack extends cdk.Stack {
       environment: {
         PG_DD_SECRET: props.secretArn,
         PG_DD_BUCKET: props.bucket,
-        PG_DD_DIR: 'tmp',
+        PG_DD_DIR: '/tmp',
         PG_DD_DATABASE_METADATA_MANAGER: 'metadata_manager',
         PG_DD_DATABASE_SEQUENCE_RUN_MANAGER: 'sequence_run_manager',
         PG_DD_DATABASE_WORKFLOW_MANAGER: 'workflow_manager',

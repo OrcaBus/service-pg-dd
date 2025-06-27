@@ -249,7 +249,11 @@ class PgDDLocal(PgDD):
         Write using pg-dump mode.
         """
         for database in self.list_databases() if db is None else [db]:
-            subprocess.run(
+            # Skip admin databases
+            if database == "postgres" or database == "rdsadmin":
+                continue
+
+            out = subprocess.run(
                 [
                     "pg_dump",
                     "-Fc",
@@ -259,9 +263,10 @@ class PgDDLocal(PgDD):
                     f"{self.out}/{database}.dump",
                 ],
                 check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                capture_output=True,
+                text=True,
             )
+            self.logger.info(out.stdout)
 
     def write_csv(self, db: str = None):
         """
@@ -321,12 +326,13 @@ class PgDDLocal(PgDD):
         """
         for root, _, databases in os.walk(self.out):
             for database in databases:
-                subprocess.run(
+                out = subprocess.run(
                     ["pg_restore", "-C", "-d", f"{self.url}", f"{root}/{database}"],
+                    capture_output=True,
                     check=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
+                    text=True,
                 )
+                self.logger.info(out.stdout)
 
     def load_to_database(self, only_empty: bool = True):
         """
