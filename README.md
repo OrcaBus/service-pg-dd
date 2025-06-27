@@ -30,6 +30,7 @@ The postgres data dump consists of a Lambda function which performs the database
 You can access CDK commands using the `pnpm` wrapper script.
 
 - **`cdk-stateless`**: Used to deploy the PgDD `PythonFunction`.
+- **`cdk-stateful`**: Used to deploy the PgDD backup `Bucket`.
 
 The type of stack to deploy is determined by the context set in the `./bin/deploy.ts` file. This ensures the correct stack is executed based on the provided context.
 
@@ -77,7 +78,8 @@ The project is organized into the following directories:
     - **`./infrastructure/toolchain`**: Includes stacks for the stateless and stateful resources deployed in the toolchain account. These stacks primarily set up the CodePipeline for cross-environment deployments.
     - **`./infrastructure/stage`**: Defines the stage stacks for different environments:
         - **`./infrastructure/stage/config.ts`**: Contains environment-specific configuration files (e.g., `beta`, `gamma`, `prod`).
-        - **`./infrastructure/stage/pg-dd-stack.ts`**: The CDK stack entry point for provisioning resources required by the application in `./app`.
+        - **`./infrastructure/stage/pg-dd-stateless-stack.ts`**: The CDK stack entry point for provisioning resources required by the application in `./app`.
+        - **`./infrastructure/stage/pg-dd-stateful-stack.ts`**: The CDK stack entry point for stateful resources.
 
 - **`.github/workflows/pr-tests.yml`**: Configures GitHub Actions to run tests for `make check-all` (linting and code style), tests defined in `./test`, and `make test` for the `./app` directory.
 
