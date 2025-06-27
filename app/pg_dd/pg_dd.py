@@ -30,6 +30,13 @@ class PgDDMode(StrEnum):
         Load the mode from the environment.
         """
         mode = os.getenv("PG_DD_MODE")
+        PgDDMode.from_str(mode)
+
+    @staticmethod
+    def from_str(mode: str | None) -> "PgDDMode":
+        """
+        Load the mode from a string
+        """
         if mode is None or mode == PgDDMode.PG_DUMP:
             return PgDDMode.PG_DUMP
         elif mode == PgDDMode.COPY_CSV:
@@ -241,7 +248,7 @@ class PgDDLocal(PgDD):
 
         self.bucket = os.getenv("PG_DD_BUCKET")
         self.prefix = os.getenv("PG_DD_PREFIX")
-        self.mode = PgDDMode(mode)
+        self.mode = PgDDMode.from_str(mode)
         self.s3: S3ServiceResource = boto3.resource("s3")
 
     def write_pg_dump(self, db: str = None):
