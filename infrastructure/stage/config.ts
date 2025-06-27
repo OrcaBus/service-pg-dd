@@ -12,9 +12,13 @@ import { RDS_MASTER_SECRET_NAME } from '@orcabus/platform-cdk-constructs/shared-
 import { PgDDStatefulConfig } from './pg-dd-stateful-stack';
 import { DEFAULT_LOGS_CONFIG } from '@orcabus/platform-cdk-constructs/api-gateway';
 
+export const getPgDDBucket = (stage: StageName): string => {
+  return `orcabus-pg-dd-${ACCOUNT_ID_ALIAS[stage]}-${REGION}`;
+};
+
 export const getPgDDConfig = (stage: StageName): PgDDConfig => {
   return {
-    bucket: `orcabus-test-data-${ACCOUNT_ID_ALIAS[stage]}-${REGION}`,
+    bucket: getPgDDBucket(stage),
     prefix: 'pg-dd',
     secretArn: `arn:aws:secretsmanager:${REGION}:${ACCOUNT_ID_ALIAS[stage]}:secret:${RDS_MASTER_SECRET_NAME}`, // pragma: allowlist secret
     lambdaSecurityGroupName: SHARED_SECURITY_GROUP_NAME,
@@ -25,6 +29,6 @@ export const getPgDDConfig = (stage: StageName): PgDDConfig => {
 
 export const getPgDDStatefulConfig = (stage: StageName): PgDDStatefulConfig => {
   return {
-    bucket: `orcabus-pg-dd-${ACCOUNT_ID_ALIAS[stage]}-${REGION}`,
+    bucket: getPgDDBucket(stage),
   };
 };

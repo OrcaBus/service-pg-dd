@@ -120,9 +120,9 @@ export class PgDDStack extends cdk.Stack {
       runtimePlatform: {
         cpuArchitecture: CpuArchitecture.ARM64,
       },
-      cpu: 256,
+      cpu: 512,
       ephemeralStorageGiB: 100,
-      memoryLimitMiB: 1024,
+      memoryLimitMiB: 4096,
       taskRole: this.role,
       family: name,
       volumes: [
