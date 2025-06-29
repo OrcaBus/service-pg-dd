@@ -1,10 +1,62 @@
-import logging
-
 from pg_dd.pg_dd import PgDDLocal, PgDDS3
 import click
+import json
+import logging
+import os
+from types import SimpleNamespace
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+import boto3
+from libumccr.aws import libsm
+from mypy_boto3_stepfunctions import SFNClient
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger()
+
+
+def send_output():
+    """
+    Send successful task response with the output.
+    """
+    task_token = os.getenv("PG_DD_TASK_TOKEN")
+    logger.debug("task_token: %s", task_token)
+    if task_token is not None:
+        client: SFNClient = boto3.client("stepfunctions")
+        client.send_task_success(
+            taskToken=task_token,
+            output=json.dumps(
+                {
+                    "bucket": os.getenv("PG_DD_BUCKET"),
+                    "prefix": os.getenv("PG_DD_PREFIX"),
+                }
+            ),
+        )
+
+
+def send_failure(error: str):
+    """
+    Send a failed task response.
+    """
+    task_token = os.getenv("PG_DD_TASK_TOKEN")
+    logger.debug("task_token: %s", task_token)
+    if task_token is not None:
+        client: SFNClient = boto3.client("stepfunctions")
+        client.send_task_failure(taskToken=task_token, error=error)
+
+
+def main():
+    try:
+        secret_str = libsm.get_secret(os.getenv("PG_DD_SECRET"))
+        secret = json.loads(secret_str, object_hook=lambda d: SimpleNamespace(**d))
+        os.environ["PG_DD_URL"] = (
+            f"{secret.engine}://{secret.username}:{secret.password}@{secret.host}:{secret.port}"
+        )
+
+        cli(standalone_mode=False)
+        send_output()
+    except Exception as e:
+        logger.error(str(e))
+        send_failure(str(e))
+        raise e
 
 
 @click.group()
@@ -35,12 +87,16 @@ def download(exists_ok):
     default=False,
     help="Dump from the database first before uploading.",
 )
-def upload(database, dump_db):
+@click.option(
+    "--mode",
+    help="Specify the mode if dumping the database, either copy-csv or pg-dump.",
+)
+def upload(database, dump_db, mode):
     """
     Uploads local CSV dumps to S3.
     """
     if dump_db:
-        PgDDLocal(logger=logger).write_to_dir(database)
+        PgDDLocal(logger=logger, mode=mode).write_to_dir(database)
 
     PgDDS3(logger=logger).write_to_bucket(database)
 
@@ -49,11 +105,12 @@ def upload(database, dump_db):
 @click.option(
     "--database", help="Specify the database to dump, dumps all databases by default."
 )
-def dump(database):
+@click.option("--mode", help="Specify the mode, either copy-csv or pg-dump.")
+def dump(database, mode):
     """
     Dump from the local database to CSV files.
     """
-    PgDDLocal(logger=logger).write_to_dir(database)
+    PgDDLocal(logger=logger, mode=mode).write_to_dir(database)
 
 
 @cli.command()
@@ -67,15 +124,16 @@ def dump(database):
     default=True,
     help="Only load into tables that are empty and exist in the database.",
 )
-def load(download_exists_ok, only_empty):
+@click.option("--mode", help="Specify the mode, either copy-csv or pg-dump.")
+def load(download_exists_ok, only_empty, mode):
     """
     Load local CSV files into the database.
     """
     if download_exists_ok:
         PgDDS3(logger=logger).download_local(download_exists_ok)
 
-    PgDDLocal(logger=logger).load_to_database(only_empty)
+    PgDDLocal(logger=logger, mode=mode).load_to_database(only_empty)
 
 
 if __name__ == "__main__":
-    cli()
+    main()

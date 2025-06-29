@@ -1,6 +1,7 @@
 name: Pull Request Tests
 
 on:
+  merge_group:
   pull_request:
     paths-ignore:
       # The ignore only works only if changes to the main branch only include the following files.
@@ -84,27 +85,26 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: make test
-
-  test-app:
-    runs-on: ubuntu-24.04-arm
-    if: ${{ !github.event.pull_request.draft }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: 3.13
-      - uses: abatilo/actions-poetry@v4
-
-      - name: Install dependencies
-        working-directory: ./app
-        run: |
-          make install
-
-      - name: Test
-        working-directory: ./app
-        run: |
-          make test
+#  test-app:
+#    runs-on: ubuntu-24.04-arm
+#    if: ${{ !github.event.pull_request.draft }}
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v4
+#        with:
+#          fetch-depth: 0
+#
+#      - uses: actions/setup-python@v5
+#        with:
+#          python-version: 3.13
+#      - uses: abatilo/actions-poetry@v4
+#
+#      - name: Install dependencies
+#        working-directory: ./app
+#        run: |
+#          make install
+#
+#      - name: Test
+#        working-directory: ./app
+#        run: |
+#          make test

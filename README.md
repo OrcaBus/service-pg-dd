@@ -22,14 +22,13 @@ There are no automated changelogs or releases, however semantic versioning is fo
 Infrastructure & Deployment
 --------------------------------------------------------------------------------
 
-The postgres data dump consists of a Lambda function which performs the database backup and upload to S3.
-
+The postgres data dump consists of a Fargate task controlled by step function which performs the database backup and upload to S3.
 
 ### CDK Commands
 
 You can access CDK commands using the `pnpm` wrapper script.
 
-- **`cdk-stateless`**: Used to deploy the PgDD `PythonFunction`.
+- **`cdk-stateless`**: Used to deploy the PgDD `FargateTaskDefinition` and `EcsRunTask`.
 - **`cdk-stateful`**: Used to deploy the PgDD backup `Bucket`.
 
 The type of stack to deploy is determined by the context set in the `./bin/deploy.ts` file. This ensures the correct stack is executed based on the provided context.

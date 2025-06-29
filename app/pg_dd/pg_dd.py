@@ -1,6 +1,9 @@
 import gzip
 import logging
 import os
+import subprocess
+from enum import StrEnum
+from time import strftime
 from typing import Dict, List, Any, Tuple, LiteralString
 
 import boto3
@@ -11,6 +14,36 @@ from mypy_boto3_s3 import S3ServiceResource
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+class PgDDMode(StrEnum):
+    """
+    Determines the operating mode, either by using the pg_dump/pg_restore command or by using a custom
+    copy command with CSV format.
+    """
+
+    PG_DUMP = "pg-dump"
+    COPY_CSV = "copy-csv"
+
+    @staticmethod
+    def from_env() -> "PgDDMode":
+        """
+        Load the mode from the environment.
+        """
+        mode = os.getenv("PG_DD_MODE")
+        PgDDMode.from_str(mode)
+
+    @staticmethod
+    def from_str(mode: str | None) -> "PgDDMode":
+        """
+        Load the mode from a string
+        """
+        if mode is None or mode == PgDDMode.PG_DUMP:
+            return PgDDMode.PG_DUMP
+        elif mode == PgDDMode.COPY_CSV:
+            return PgDDMode.COPY_CSV
+        else:
+            raise RuntimeError(f"unknown mode: {mode}")
 
 
 class PgDD:
@@ -45,7 +78,7 @@ class PgDD:
                         cur.execute(
                             """
                             select table_name from information_schema.tables
-                            where table_schema='public';
+                            where table_schema = 'public';
                             """
                         )
                         tables = [(name[0], name[0], False) for name in cur.fetchall()]
@@ -53,6 +86,26 @@ class PgDD:
 
                 with conn.cursor() as cur:
                     databases[entry["database"]] = self.copy_tables_to_csv(cur, tables)
+
+        return databases
+
+    def list_databases(self) -> List[str]:
+        """
+        List all databases.
+        """
+        databases = []
+
+        conn: psycopg.connection.Connection
+        with psycopg.connect(self.url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    select datname from pg_database
+                    where datistemplate = false;
+                    """
+                )
+                databases = [name[0] for name in cur.fetchall()]
+                self.logger.info(f"fetched databases: {databases}")
 
         return databases
 
@@ -72,17 +125,17 @@ class PgDD:
                 exists = cur.execute(
                     sql.SQL(
                         """
-                    select exists(
-                        select from pg_tables where tablename = '{}'
-                    );
-                    """
+                        select exists(
+                            select from pg_tables where tablename = '{}'
+                        );
+                        """
                     ).format(sql.SQL(table))
                 ).fetchone()[0]
                 has_records = cur.execute(
                     sql.SQL(
                         """
-                    select exists(select * from {})
-                    """
+                        select exists(select * from {})
+                        """
                     ).format(sql.SQL(table))
                 ).fetchone()[0]
 
@@ -188,29 +241,64 @@ class PgDDLocal(PgDD):
         self,
         out_dir=os.getenv("PG_DD_DIR"),
         logger: logging.Logger = logging.getLogger(__name__),
+        mode: PgDDMode = PgDDMode.from_env(),
     ):
         super().__init__(logger=logger)
         self.out = out_dir
+        os.makedirs(self.out, exist_ok=True)
+
         self.bucket = os.getenv("PG_DD_BUCKET")
         self.prefix = os.getenv("PG_DD_PREFIX")
+        self.mode = PgDDMode.from_str(mode)
         self.s3: S3ServiceResource = boto3.resource("s3")
 
-    def write_to_dir(self, db: str = None):
+    def write_pg_dump(self, db: str = None):
         """
-        Write the CSV files to the output directory.
+        Write using pg-dump mode.
         """
+        for database in self.list_databases() if db is None else [db]:
+            # Skip admin databases
+            if database == "postgres" or database == "rdsadmin":
+                continue
 
+            out = subprocess.run(
+                [
+                    "pg_dump",
+                    "-Fc",
+                    "-d",
+                    f"{self.url}/{database}",
+                    "-f",
+                    f"{self.out}/{database}.dump",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.logger.info(out.stdout)
+
+    def write_csv(self, db: str = None):
+        """
+        Write using copy-csv mode.
+        """
         for _, _, f, value in self.target_files(db):
             file = f"{self.out}/{f}"
-            os.makedirs(file.rsplit("/", 1)[0], exist_ok=True)
             self.logger.info(f"writing to file: {f}")
 
             with open(file, "wb") as file:
                 file.write(gzip.compress(str.encode(value)))
 
-    def load_to_database(self, only_empty: bool = True):
+    def write_to_dir(self, db: str = None):
         """
-        Load CSV files to the database.
+        Write the CSV files to the output directory.
+        """
+        if self.mode == PgDDMode.PG_DUMP:
+            self.write_pg_dump(db)
+        else:
+            self.write_csv(db)
+
+    def load_csv(self, only_empty: bool = True):
+        """
+        Load using copy-csv mode.
         """
 
         def load_files():
@@ -239,6 +327,29 @@ class PgDDLocal(PgDD):
                     conn.set_deferrable(True)
                     load_files()
                     conn.commit()
+
+    def load_pg_restore(self):
+        """
+        Load using pg-dump mode.
+        """
+        for root, _, databases in os.walk(self.out):
+            for database in databases:
+                out = subprocess.run(
+                    ["pg_restore", "-C", "-d", f"{self.url}", f"{root}/{database}"],
+                    capture_output=True,
+                    check=True,
+                    text=True,
+                )
+                self.logger.info(out.stdout)
+
+    def load_to_database(self, only_empty: bool = True):
+        """
+        Load CSV files to the database.
+        """
+        if self.mode == PgDDMode.PG_DUMP:
+            self.load_pg_restore()
+        else:
+            self.load_csv(only_empty)
 
 
 class PgDDS3(PgDD):
@@ -271,7 +382,7 @@ class PgDDS3(PgDD):
                     continue
 
                 if self.prefix:
-                    key = f"{self.prefix}/{key}"
+                    key = f"{self.prefix}/{strftime('%Y%m%d')}/{key}"
 
                 self.logger.info(f"writing to bucket with key: {key}")
 
