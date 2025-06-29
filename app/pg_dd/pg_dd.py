@@ -3,6 +3,7 @@ import logging
 import os
 import subprocess
 from enum import StrEnum
+from time import strftime
 from typing import Dict, List, Any, Tuple, LiteralString
 
 import boto3
@@ -381,7 +382,7 @@ class PgDDS3(PgDD):
                     continue
 
                 if self.prefix:
-                    key = f"{self.prefix}/{key}"
+                    key = f"{self.prefix}/{strftime('%Y%m%d')}/{key}"
 
                 self.logger.info(f"writing to bucket with key: {key}")
 
