@@ -386,9 +386,7 @@ class PgDDS3(PgDD):
 
                 self.logger.info(f"writing to bucket with key: {key}")
 
-                s3_object = self.s3.Object(self.bucket, key)
-                with open(file, "rb") as f:
-                    s3_object.put(Body=f.read())
+                self.s3.Bucket(self.bucket).upload_file(file, key)
 
     def download_local(self, exists_ok: bool = True):
         """
@@ -406,7 +404,4 @@ class PgDDS3(PgDD):
                 self.logger.info(f"file already exists: {file}")
                 continue
 
-            s3_object = self.s3.Object(self.bucket, obj.key).get()
-            data = s3_object["Body"].read()
-            with open(file, "wb") as f:
-                f.write(data)
+            self.s3.Bucket(self.bucket).download_file(obj.key, file)
