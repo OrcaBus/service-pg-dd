@@ -19,6 +19,26 @@ aws stepfunctions start-execution --state-machine-arn $ARN  --input \
 
 This is setup to dump the all databases except `postgres` and `rdsadmin`.
 
+### Overriding task resources
+
+The default Fargate task runs with `cpu: 512` and `memory: 4096`. Large databases like the
+filemanager will cause an OOM with these settings. Bump it up using the state machine input
+when dumping filemanager:
+
+```sh
+aws stepfunctions start-execution --state-machine-arn $ARN --input \
+  '{
+     "commands": ["upload", "--dump-db"],
+     "cpu": "4096",
+     "memory": "30720"
+   }'
+```
+
+Note that `"cpu"` and `"memory"` must be valid Fargate CPU/memory combinations.
+See [Fargate task sizes][fargate-sizes] table. Omitted fields fall back to defaults.
+
+[fargate-sizes]: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-cpu-memory-error.html
+
 This command can be run locally using make, or by running `poetry` directly:
 
 ```sh
