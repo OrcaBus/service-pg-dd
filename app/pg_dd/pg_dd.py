@@ -261,7 +261,7 @@ class PgDDLocal(PgDD):
             if database == "postgres" or database == "rdsadmin":
                 continue
 
-            out = subprocess.run(
+            subprocess.run(
                 [
                     "pg_dump",
                     "-Fc",
@@ -274,7 +274,6 @@ class PgDDLocal(PgDD):
                 capture_output=True,
                 text=True,
             )
-            self.logger.info(out.stdout)
 
     def write_csv(self, db: str = None):
         """
@@ -334,13 +333,12 @@ class PgDDLocal(PgDD):
         """
         for root, _, databases in os.walk(self.out):
             for database in databases:
-                out = subprocess.run(
+                subprocess.run(
                     ["pg_restore", "-C", "-d", f"{self.url}", f"{root}/{database}"],
                     capture_output=True,
                     check=True,
                     text=True,
                 )
-                self.logger.info(out.stdout)
 
     def load_to_database(self, only_empty: bool = True):
         """
