@@ -11,6 +11,17 @@ export class StatelessStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    const buildSpec = {
+      phases: {
+        install: {
+          'runtime-versions': {
+            nodejs: '24.x',
+            python: '3.13',
+          },
+        },
+      },
+    };
+
     const deployment = new DeploymentStackPipeline(this, 'DeploymentPipeline', {
       githubBranch: 'main',
       githubRepo: 'service-pg-dd',
@@ -28,16 +39,15 @@ export class StatelessStack extends cdk.Stack {
         },
       },
       pipelineName: 'OrcaBus-StatelessPgDD',
-      cdkSynthCmd: ['pnpm install --frozen-lockfile --ignore-scripts', 'pnpm cdk-stateless synth'],
-      synthBuildSpec: {
-        phases: {
-          install: {
-            'runtime-versions': {
-              nodejs: '22.x',
-              python: '3.13',
-            },
-          },
-        },
+      cdkSynthCmd: ['pnpm cdk-stateless synth'],
+      synthBuildSpec: buildSpec,
+      unitAppTestConfig: {
+        command: ['cd app', 'make test'],
+        partialBuildSpec: buildSpec,
+      },
+      unitIacTestConfig: {
+        command: ['pnpm test --testPathPatterns=test/stateless'],
+        partialBuildSpec: buildSpec,
       },
     });
 

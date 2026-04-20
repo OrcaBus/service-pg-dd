@@ -93,7 +93,7 @@ however to just deploy the stack, all that should be required is pnpm and nodejs
 
 ```sh
 node --version
-v22.9.0
+v24.15.0
 
 # Update Corepack (if necessary, as per pnpm documentation)
 npm install --global corepack@latest

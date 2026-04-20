@@ -11,6 +11,16 @@ export class StatefulStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    const buildSpec = {
+      phases: {
+        install: {
+          'runtime-versions': {
+            nodejs: '24.x',
+          },
+        },
+      },
+    };
+
     const deployment = new DeploymentStackPipeline(this, 'DeploymentPipeline', {
       githubBranch: 'main',
       githubRepo: 'service-pg-dd',
@@ -28,7 +38,16 @@ export class StatefulStack extends cdk.Stack {
         },
       },
       pipelineName: 'OrcaBus-StatefulPgDD',
-      cdkSynthCmd: ['pnpm install --frozen-lockfile --ignore-scripts', 'pnpm cdk-stateful synth'],
+      cdkSynthCmd: ['pnpm cdk-stateful synth'],
+      synthBuildSpec: buildSpec,
+      // No app tests for stateful stack.
+      unitAppTestConfig: {
+        command: [],
+      },
+      unitIacTestConfig: {
+        command: ['pnpm test --testPathPatterns=test/stateful'],
+        partialBuildSpec: buildSpec,
+      },
     });
 
     this.pipeline = deployment.pipeline;

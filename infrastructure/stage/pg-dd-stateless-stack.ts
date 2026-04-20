@@ -10,7 +10,6 @@ import {
   VpcLookupOptions,
 } from 'aws-cdk-lib/aws-ec2';
 import { PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
-import * as path from 'node:path';
 import {
   AssetImage,
   Cluster,
@@ -31,6 +30,7 @@ import {
   Timeout,
 } from 'aws-cdk-lib/aws-stepfunctions';
 import { EcsFargateLaunchTarget, EcsRunTask } from 'aws-cdk-lib/aws-stepfunctions-tasks';
+import * as path from 'node:path';
 
 /**
  * Props for the PgDD stack.
