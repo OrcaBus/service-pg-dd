@@ -271,8 +271,6 @@ class PgDDLocal(PgDD):
                     f"{self.out}/{database}.dump",
                 ],
                 check=True,
-                capture_output=True,
-                text=True,
             )
 
     def write_csv(self, db: str = None):
@@ -335,9 +333,7 @@ class PgDDLocal(PgDD):
             for database in databases:
                 subprocess.run(
                     ["pg_restore", "-C", "-d", f"{self.url}", f"{root}/{database}"],
-                    capture_output=True,
                     check=True,
-                    text=True,
                 )
 
     def load_to_database(self, only_empty: bool = True):
