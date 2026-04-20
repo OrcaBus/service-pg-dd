@@ -8,13 +8,10 @@ Call the deployed function to update the current dump:
 
 ```sh
 export ARN=$(aws stepfunctions list-state-machines | jq -r '.stateMachines | .[] | select(.name == "orcabus-pg-dd") | .stateMachineArn')
-aws stepfunctions start-execution --state-machine-arn $ARN  --input \
-  "{\
-    \"commands\": [\
-      \"upload\",\
-      \"--dump-db\"\
-    ]\
-  }"
+aws stepfunctions start-execution --state-machine-arn $ARN --input \
+  '{
+     "commands": ["upload", "--dump-db"]
+   }'
 ```
 
 This is setup to dump the all databases except `postgres` and `rdsadmin`.
