@@ -10,7 +10,6 @@ import {
   VpcLookupOptions,
 } from 'aws-cdk-lib/aws-ec2';
 import { PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
-import * as path from 'node:path';
 import {
   AssetImage,
   Cluster,
@@ -31,6 +30,7 @@ import {
   Timeout,
 } from 'aws-cdk-lib/aws-stepfunctions';
 import { EcsFargateLaunchTarget, EcsRunTask } from 'aws-cdk-lib/aws-stepfunctions-tasks';
+import * as path from 'node:path';
 
 /**
  * Props for the PgDD stack.
@@ -116,13 +116,15 @@ export class PgDDStack extends cdk.Stack {
 
     const entry = path.join(__dirname, '..', '..', 'app');
     const name = 'orcabus-pg-dd';
+    const defaultCpu = 512;
+    const defaultMemory = 4096;
     const taskDefinition = new FargateTaskDefinition(this, 'TaskDefinition', {
       runtimePlatform: {
         cpuArchitecture: CpuArchitecture.ARM64,
       },
-      cpu: 512,
+      cpu: defaultCpu,
       ephemeralStorageGiB: 100,
-      memoryLimitMiB: 4096,
+      memoryLimitMiB: defaultMemory,
       taskRole: this.role,
       family: name,
       volumes: [
@@ -166,7 +168,20 @@ export class PgDDStack extends cdk.Stack {
       allowAllOutbound: true,
       description: 'Security group that allows the PgDD task to egress out.',
     });
-    const startState = new Pass(this, 'StartState');
+    const startState = new Pass(this, 'StartState', {
+      parameters: {
+        'merged.$': `States.JsonMerge(States.StringToJson('{"cpu":"${defaultCpu}","memory":"${defaultMemory}"}'), $, false)`,
+      },
+      outputPath: '$.merged',
+    });
+    // Allows passing either a string or number.
+    const normalizeInput = new Pass(this, 'ParseInput', {
+      parameters: {
+        'commands.$': '$.commands',
+        'cpu.$': "States.Format('{}', $.cpu)",
+        'memory.$': "States.Format('{}', $.memory)",
+      },
+    });
     const task = new EcsRunTask(this, 'RunPgDD', {
       cluster: this.cluster,
       taskTimeout: Timeout.duration(Duration.hours(12)),
@@ -177,6 +192,8 @@ export class PgDDStack extends cdk.Stack {
       subnets: {
         subnetType: SubnetType.PRIVATE_WITH_EGRESS,
       },
+      cpu: JsonPath.stringAt('$.cpu'),
+      memoryMiB: JsonPath.stringAt('$.memory'),
       containerOverrides: [
         {
           containerDefinition: container,
@@ -194,7 +211,9 @@ export class PgDDStack extends cdk.Stack {
 
     new StateMachine(this, 'StateMachine', {
       stateMachineName: name,
-      definitionBody: ChainDefinitionBody.fromChainable(startState.next(task).next(finish)),
+      definitionBody: ChainDefinitionBody.fromChainable(
+        startState.next(normalizeInput).next(task).next(finish)
+      ),
     });
   }
 }
