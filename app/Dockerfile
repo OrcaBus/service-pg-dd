@@ -4,7 +4,7 @@ RUN pip3 install poetry \
     && apt update \
     && apt install -y postgresql-common \
     && yes | /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh \
-    && apt install -y postgresql-client-16
+    && apt install -y postgresql-client-17
 
 # Workaround to add bind mount on fargate launch type which doesn't support tmpfs:
 # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/bind-mounts.html
