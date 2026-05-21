@@ -30,6 +30,7 @@ import {
   Timeout,
 } from 'aws-cdk-lib/aws-stepfunctions';
 import { EcsFargateLaunchTarget, EcsRunTask } from 'aws-cdk-lib/aws-stepfunctions-tasks';
+import { POSTGRES_MAJOR_VERSION } from '@orcabus/platform-cdk-constructs/shared-config/database';
 import * as path from 'node:path';
 
 /**
@@ -137,6 +138,9 @@ export class PgDDStack extends cdk.Stack {
       stopTimeout: Duration.seconds(120),
       image: new AssetImage(entry, {
         platform: Platform.LINUX_ARM64,
+        buildArgs: {
+          POSTGRES_CLIENT_MAJOR_VERSION: POSTGRES_MAJOR_VERSION,
+        },
       }),
       readonlyRootFilesystem: true,
       logging: LogDriver.awsLogs({
