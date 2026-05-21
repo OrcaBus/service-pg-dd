@@ -1,10 +1,12 @@
 FROM public.ecr.aws/docker/library/python:3.13
 
+ARG POSTGRES_CLIENT_MAJOR_VERSION=17
+
 RUN pip3 install poetry \
     && apt update \
     && apt install -y postgresql-common \
     && yes | /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh \
-    && apt install -y postgresql-client-17
+    && apt install -y postgresql-client-${POSTGRES_CLIENT_MAJOR_VERSION}
 
 # Workaround to add bind mount on fargate launch type which doesn't support tmpfs:
 # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/bind-mounts.html
